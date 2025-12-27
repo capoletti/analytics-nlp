@@ -1,0 +1,30 @@
+version: '3.3'
+services:
+  nessie:
+    image: ghcr.io/projectnessie/nessie:latest
+    container_name: nessie
+    ports:
+      - "19120:19120"
+
+  trino:
+    build:
+      context: ./trino
+    container_name: trino
+    ports:
+      - "8080:8080"
+    volumes:
+      - trino_warehouse:/var/trino/iceberg
+      - trino_data:/var/trino/data
+    depends_on:
+      - nessie
+
+  loader:
+    build:
+      context: ./loader
+    container_name: trino-local_loader_1
+    depends_on:
+      - trino
+
+volumes:
+  trino_warehouse:
+  trino_data:

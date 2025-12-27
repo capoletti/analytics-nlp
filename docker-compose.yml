@@ -1,0 +1,133 @@
+version: "3.8"
+
+services:
+  # Database for backend
+  postgres:
+    image: postgres:16-alpine
+    container_name: analytics-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: analytics
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - analytics-network
+
+  # Cache for backend
+  redis:
+    image: redis:7-alpine
+    container_name: analytics-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - analytics-network
+
+  # Nessie catalog service for Iceberg
+  nessie:
+    image: ghcr.io/projectnessie/nessie:latest
+    container_name: nessie
+    ports:
+      - "19120:19120"
+    networks:
+      - analytics-network
+
+  # Trino coordinator
+  trino:
+    build:
+      context: ./trino-local/trino
+    container_name: trino
+    user: "0:0"
+    ports:
+      - "8080:8080"
+    volumes:
+      - trino_warehouse:/var/trino/iceberg
+      - trino_data:/var/trino/data
+    depends_on:
+      - nessie
+    networks:
+      - analytics-network
+
+  # Optional loader to seed Trino catalogs
+  loader:
+    build:
+      context: ./trino-local/loader
+    container_name: trino-local_loader_1
+    depends_on:
+      - trino
+    networks:
+      - analytics-network
+
+  # Backend (FastAPI)
+  backend:
+    image: python:3.11-slim
+    container_name: analytics-backend
+    working_dir: /app
+    volumes:
+      - ./backend-python:/app
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DEBUG: "false"
+      LOG_LEVEL: "INFO"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: analytics
+      TRINO_HOST: trino
+      TRINO_PORT: 8080
+      TRINO_CATALOG: iceberg
+      TRINO_SCHEMA_PREFIX: default
+      REDIS_ENABLED: "true"
+      REDIS_URL: redis://redis:6379/0
+      VALID_TENANTS: '["empresa1","empresa2","empresa3"]'
+    command: bash -lc "pip install --no-cache-dir -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8081"
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres
+      - redis
+      - trino
+    networks:
+      - analytics-network
+
+  # Frontend (Vite dev server)
+  frontend:
+    image: node:20-alpine
+    container_name: analytics-frontend
+    working_dir: /app
+    volumes:
+      - ./frontend-react:/app
+    environment:
+      VITE_API_URL: http://localhost:8081
+    command: sh -lc "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5500:5500"
+    depends_on:
+      - backend
+    networks:
+      - analytics-network
+
+networks:
+  analytics-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  trino_warehouse:
+  trino_data:
