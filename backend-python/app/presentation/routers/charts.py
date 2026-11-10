@@ -152,13 +152,13 @@ async def get_chart_data(
                 query = f"SELECT * FROM {tenant}.{request.table}{where_clause} LIMIT {request.limit}"
         
         # Execute query
-        data = trino_client.execute_query(query)
+        data = trino_client.execute_query(query, tenant=tenant)
         
         # Get total count if using table
         total = len(data)
         if request.table and not request.sql:
             count_query = f"SELECT COUNT(*) as count FROM {tenant}.{request.table}{build_where_clause(request.filters)}"
-            count_result = trino_client.execute_query(count_query)
+            count_result = trino_client.execute_query(count_query, tenant=tenant)
             total = count_result[0]["count"] if count_result else 0
         
         return ChartDataResponse(

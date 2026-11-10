@@ -1,27 +1,31 @@
 {
   "catalogs": [
-    { "user": "root", "catalog": ".*", "allow": "all" },
     { "user": "loader", "catalog": ".*", "allow": "all" },
-    { "user": "user_empresa1", "catalog": "iceberg", "allow": "all" },
-    { "user": "user_empresa2", "catalog": "iceberg", "allow": "all" },
-    { "user": "user_empresa3", "catalog": "iceberg", "allow": "all" },
-    { "user": ".*", "catalog": "system", "allow": "all" },
-    { "user": ".*", "catalog": ".*", "allow": "none" }
+    { "user": "user_empresa1", "catalog": "iceberg", "allow": "read-only" },
+    { "user": "user_empresa2", "catalog": "iceberg", "allow": "read-only" },
+    { "user": "user_empresa3", "catalog": "iceberg", "allow": "read-only" },
+    { "catalog": ".*", "allow": "none" }
   ],
   "schemas": [
-    { "user": "root", "catalog": ".*", "schema": ".*", "owner": true },
     { "user": "loader", "catalog": ".*", "schema": ".*", "owner": true },
-    { "user": "user_empresa1", "catalog": "iceberg", "schema": "empresa1" },
-    { "user": "user_empresa2", "catalog": "iceberg", "schema": "empresa2" },
-    { "user": "user_empresa3", "catalog": "iceberg", "schema": "empresa3" },
-    { "user": ".*", "catalog": "system", "schema": ".*" }
+    { "user": "user_empresa1", "catalog": "iceberg", "schema": "empresa1", "owner": false },
+    { "user": "user_empresa2", "catalog": "iceberg", "schema": "empresa2", "owner": false },
+    { "user": "user_empresa3", "catalog": "iceberg", "schema": "empresa3", "owner": false }
   ],
   "tables": [
-    { "user": "root", "catalog": ".*", "schema": ".*", "table": ".*", "privileges": ["SELECT", "INSERT", "DELETE", "OWNERSHIP"] },
     { "user": "loader", "catalog": ".*", "schema": ".*", "table": ".*", "privileges": ["SELECT", "INSERT", "DELETE", "OWNERSHIP"] },
     { "user": "user_empresa1", "catalog": "iceberg", "schema": "empresa1", "table": ".*", "privileges": ["SELECT"] },
     { "user": "user_empresa2", "catalog": "iceberg", "schema": "empresa2", "table": ".*", "privileges": ["SELECT"] },
-    { "user": "user_empresa3", "catalog": "iceberg", "schema": "empresa3", "table": ".*", "privileges": ["SELECT"] },
-    { "user": ".*", "catalog": "system", "schema": ".*", "table": ".*", "privileges": ["SELECT"] }
+    { "user": "user_empresa3", "catalog": "iceberg", "schema": "empresa3", "table": ".*", "privileges": ["SELECT"] }
+  ],
+  "queries": [
+    { "user": "loader", "allow": ["execute", "kill", "view"] },
+    { "allow": ["execute"] }
+  ],
+  "system_information": [
+    { "user": "loader", "allow": ["read"] }
+  ],
+  "impersonation": [
+    { "original_user": ".*", "new_user": ".*", "allow": false }
   ]
 }

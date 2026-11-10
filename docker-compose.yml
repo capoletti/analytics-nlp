@@ -46,19 +46,36 @@ services:
     networks:
       - analytics-network
 
-  # Trino coordinator
+  # Generates Trino TLS certificate, password file and per-user passwords (once)
+  trino-secrets:
+    build:
+      context: ./trino-local/secrets-init
+    environment:
+      TRINO_TENANTS: "empresa1 empresa2 empresa3"
+    volumes:
+      - trino_server_secrets:/secrets/server
+      - trino_ca:/secrets/ca
+      - trino_loader_secret:/secrets/loader
+      - trino_backend_secrets:/secrets/backend
+    network_mode: none
+
+  # Trino coordinator (HTTPS + password authentication; only reachable from localhost)
   trino:
     build:
       context: ./trino-local/trino
     container_name: trino
     user: "0:0"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8443:8443"
     volumes:
       - trino_warehouse:/var/trino/iceberg
       - trino_data:/var/trino/data
+      - trino_server_secrets:/etc/trino/secrets:ro
     depends_on:
-      - nessie
+      nessie:
+        condition: service_started
+      trino-secrets:
+        condition: service_completed_successfully
     networks:
       - analytics-network
 
@@ -67,6 +84,15 @@ services:
     build:
       context: ./trino-local/loader
     container_name: trino-local_loader_1
+    environment:
+      TRINO_HOST: trino
+      TRINO_PORT: 8443
+      TRINO_USER: loader
+      TRINO_PASSWORD_FILE: /run/secrets/trino-loader/loader
+      TRINO_CA_CERT_PATH: /run/secrets/trino-ca/ca.crt
+    volumes:
+      - trino_loader_secret:/run/secrets/trino-loader:ro
+      - trino_ca:/run/secrets/trino-ca:ro
     depends_on:
       - trino
     networks:
@@ -79,6 +105,8 @@ services:
     working_dir: /app
     volumes:
       - ./backend-python:/app
+      - trino_backend_secrets:/run/secrets/trino:ro
+      - trino_ca:/run/secrets/trino-ca:ro
     environment:
       PYTHONUNBUFFERED: "1"
       DEBUG: "false"
@@ -89,7 +117,10 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: analytics
       TRINO_HOST: trino
-      TRINO_PORT: 8080
+      TRINO_PORT: 8443
+      TRINO_HTTP_SCHEME: https
+      TRINO_CA_CERT_PATH: /run/secrets/trino-ca/ca.crt
+      TRINO_PASSWORDS_DIR: /run/secrets/trino
       TRINO_CATALOG: iceberg
       TRINO_SCHEMA_PREFIX: default
       REDIS_ENABLED: "true"
@@ -131,3 +162,7 @@ volumes:
   redis_data:
   trino_warehouse:
   trino_data:
+  trino_server_secrets:
+  trino_ca:
+  trino_loader_secret:
+  trino_backend_secrets:

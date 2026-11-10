@@ -26,7 +26,11 @@ class Settings(BaseSettings):
     
     # Trino
     TRINO_HOST: str = "localhost"
-    TRINO_PORT: int = 8080
+    TRINO_PORT: int = 8443
+    TRINO_HTTP_SCHEME: str = "https"
+    TRINO_CA_CERT_PATH: str = ""
+    TRINO_PASSWORDS_DIR: str = "/run/secrets/trino"
+    TRINO_TENANT_USER_PREFIX: str = "user_"
     TRINO_CATALOG: str = "iceberg"
     TRINO_SCHEMA_PREFIX: str = "default"
     
