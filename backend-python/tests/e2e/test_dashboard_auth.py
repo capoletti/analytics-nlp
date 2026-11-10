@@ -8,7 +8,9 @@ from unittest.mock import AsyncMock
 from main import create_app
 from app.config import get_settings
 from app.infrastructure.security.jwt_tokens import create_access_token
+from app.infrastructure.security.login_throttle import LoginThrottle
 from app.infrastructure.security.passwords import hash_password
+from app.presentation.routers.auth import get_login_throttle
 from app.presentation.dependencies import get_dashboard_service
 
 TEST_SECRET = "test-secret-key-with-at-least-32-characters"
@@ -37,6 +39,8 @@ def service():
 async def client(settings, service):
     app = create_app()
     app.dependency_overrides[get_dashboard_service] = lambda: service
+    throttle = LoginThrottle(max_failures=3, window_seconds=900)
+    app.dependency_overrides[get_login_throttle] = lambda: throttle
     async with AsyncClient(app=app, base_url="http://test") as c:
         yield c
 
@@ -125,6 +129,21 @@ async def test_login_issues_token_for_own_tenant(client):
 async def test_login_rejects_bad_credentials(client, tenant, password):
     response = await client.post("/api/auth/login", json={"tenant": tenant, "password": password})
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_repeated_failed_logins_are_throttled(client):
+    for _ in range(3):
+        response = await client.post(
+            "/api/auth/login", json={"tenant": "empresa1", "password": "errada"}
+        )
+        assert response.status_code == 401
+
+    # Even the correct password is refused while throttled
+    response = await client.post(
+        "/api/auth/login", json={"tenant": "empresa1", "password": "senha-empresa1"}
+    )
+    assert response.status_code == 429
 
 
 @pytest.mark.asyncio

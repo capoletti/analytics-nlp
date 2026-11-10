@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_HOURS: int = 24
     # Per-tenant scrypt password hashes (see scripts/hash_password.py)
     TENANT_PASSWORD_HASHES: Dict[str, str] = {}
+    LOGIN_MAX_FAILURES: int = 5
+    LOGIN_FAILURE_WINDOW_SECONDS: int = 900
     
     # Tenants
     VALID_TENANTS: List[str] = ["empresa1", "empresa2", "empresa3"]
