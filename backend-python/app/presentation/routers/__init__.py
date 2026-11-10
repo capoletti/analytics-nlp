@@ -1,4 +1,4 @@
 """API routers"""
-from . import dashboard, health, charts, catalog, llm
+from . import auth, dashboard, health, charts, catalog, llm
 
-__all__ = ["dashboard", "health", "charts", "catalog", "llm"]
+__all__ = ["auth", "dashboard", "health", "charts", "catalog", "llm"]

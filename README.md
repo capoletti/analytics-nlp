@@ -59,6 +59,7 @@ Tenants habilitados: empresa1, empresa2, empresa3.
   - TRINO_HOST=trino, TRINO_PORT=8080, TRINO_CATALOG=iceberg
   - POSTGRES_HOST=postgres, REDIS_URL=redis://redis:6379/0
   - VALID_TENANTS como array JSON: ["empresa1","empresa2","empresa3"]
+  - JWT_SECRET (obrigatório, >= 32 caracteres aleatórios, ex.: `openssl rand -hex 32`) e TENANT_PASSWORD_HASHES (JSON tenant -> hash gerado com `python backend-python/scripts/hash_password.py`) devem ser exportados antes do `docker-compose up`. As rotas `/api/dashboards` exigem o token obtido em `POST /api/auth/login`.
 - Frontend (Vite) roda na porta 5500 e consome o backend em http://localhost:8081.
 - Trino armazena dados do Iceberg em /var/trino/iceberg; Nessie provê o catálogo.
 

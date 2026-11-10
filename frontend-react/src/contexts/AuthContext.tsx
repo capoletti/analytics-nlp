@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { tokenStorage, UNAUTHORIZED_EVENT } from '@/services/api';
+import { authService } from '@/services/authService';
 
 interface AuthContextValue {
   tenant: string | null;
   isAuthenticated: boolean;
-  login: (tenant: string) => void;
+  login: (tenant: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -12,57 +13,32 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = 'analytics_tenant';
 
-// Extract tenant from URL if available (from query param or localStorage)
-function extractTenantFromURL(): string | null {
-  // First try to get from query params
-  const params = new URLSearchParams(window.location.search);
-  const tenantParam = params.get('tenant');
-  if (tenantParam) return tenantParam;
-  
-  // Fallback: try common tenants based on known patterns
-  // This is for direct navigation without login
-  return null;
-}
-
 export function AuthProvider({ children }: { children: (value: AuthContextValue) => ReactNode }) {
-  const [searchParams] = useSearchParams();
-  
-  const [tenant, setTenant] = useState<string | null>(() => {
-    // Initialize from localStorage first
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return stored;
-    
-    // Fallback to URL parameter
-    return extractTenantFromURL();
-  });
+  // The tenant is only trusted alongside a server-issued token; the backend enforces the binding.
+  const [tenant, setTenant] = useState<string | null>(() =>
+    tokenStorage.get() ? localStorage.getItem(STORAGE_KEY) : null
+  );
 
-  // Update tenant when URL query params change
-  useEffect(() => {
-    const tenantParam = searchParams.get('tenant');
-    if (tenantParam && tenantParam !== tenant) {
-      setTenant(tenantParam);
-      localStorage.setItem(STORAGE_KEY, tenantParam);
-    }
-  }, [searchParams, tenant]);
-
-  const login = useCallback((tenantId: string) => {
-    setTenant(tenantId);
-    localStorage.setItem(STORAGE_KEY, tenantId);
+  const login = useCallback(async (tenantId: string, password: string) => {
+    const { access_token, tenant: authenticatedTenant } = await authService.login(
+      tenantId,
+      password
+    );
+    tokenStorage.set(access_token);
+    localStorage.setItem(STORAGE_KEY, authenticatedTenant);
+    setTenant(authenticatedTenant);
   }, []);
 
   const logout = useCallback(() => {
-    setTenant(null);
+    tokenStorage.clear();
     localStorage.removeItem(STORAGE_KEY);
+    setTenant(null);
   }, []);
 
-  // Persist tenant to localStorage whenever it changes
   useEffect(() => {
-    if (tenant) {
-      localStorage.setItem(STORAGE_KEY, tenant);
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }, [tenant]);
+    window.addEventListener(UNAUTHORIZED_EVENT, logout);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, logout);
+  }, [logout]);
 
   const value: AuthContextValue = {
     tenant,

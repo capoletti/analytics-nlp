@@ -8,7 +8,7 @@ from app.config import get_settings
 from app.utils import setup_logging, get_logger
 from app.infrastructure.persistence.postgres.connection import PostgreSQLConnection
 from app.infrastructure.persistence.postgres.models import Base
-from app.presentation.routers import dashboard, health, charts, catalog, llm
+from app.presentation.routers import auth, dashboard, health, charts, catalog, llm
 from app.presentation.middleware.logging import LoggingMiddleware
 from app.presentation.middleware.error_handler import register_exception_handlers
 
@@ -60,6 +60,7 @@ def create_app() -> FastAPI:
     
     # Include routers
     app.include_router(health.router)
+    app.include_router(auth.router)
     app.include_router(dashboard.router)
     app.include_router(charts.router)
     app.include_router(catalog.router)

@@ -192,8 +192,16 @@ See `.env.example` for all configuration options:
 - `POSTGRES_*`: PostgreSQL connection settings
 - `TRINO_*`: Trino cluster settings
 - `REDIS_*`: Redis cache settings
-- `JWT_*`: JWT authentication settings
-- `VALID_TENANTS`: Comma-separated list of valid tenants
+- `JWT_*`: JWT authentication settings (`JWT_SECRET` is required, >= 32 random chars)
+- `VALID_TENANTS`: JSON list of valid tenants
+- `TENANT_PASSWORD_HASHES`: JSON map tenant -> scrypt hash (generate with `python scripts/hash_password.py`)
+
+## Authentication
+
+`POST /api/auth/login` with `{"tenant": "...", "password": "..."}` returns a JWT whose signed
+`tenant` claim is the only tenant the caller may access. Dashboard routes require
+`Authorization: Bearer <token>`: missing/invalid tokens get 401 and a path tenant different
+from the token's tenant gets 403.
 
 ## Migration from Old Backend
 
@@ -254,7 +262,7 @@ netstat -ano | findstr :8000   # Windows
 
 ## Next Steps
 
-- [ ] Add JWT authentication
+- [x] Add JWT authentication (dashboard routes)
 - [ ] Implement Redis caching
 - [ ] Add rate limiting middleware
 - [ ] Integrate Trino client
