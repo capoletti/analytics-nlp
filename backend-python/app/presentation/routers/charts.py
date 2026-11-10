@@ -1,14 +1,23 @@
 """Charts data API router"""
 
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from app.config import get_settings
 from app.infrastructure.external.trino.client import get_trino_client
 from app.exceptions import TrinoException
 
 logger = logging.getLogger(__name__)
+
+ALLOWED_AGGREGATIONS = {
+    "sum": "SUM",
+    "count": "COUNT",
+    "avg": "AVG",
+    "min": "MIN",
+    "max": "MAX",
+}
 
 router = APIRouter(
     prefix="/api/charts",
@@ -28,13 +37,25 @@ class FilterItem(BaseModel):
 
 
 class FilterGroup(BaseModel):
-    logical: str = "AND"
+    logical: Literal["AND", "OR"] = "AND"
     items: List[FilterItem] = Field(default_factory=list)
+
+    @field_validator("logical", mode="before")
+    @classmethod
+    def normalize_logical(cls, value: Any) -> Any:
+        if value is None:
+            return "AND"
+        return value.upper() if isinstance(value, str) else value
 
 
 class Metric(BaseModel):
     column: str
-    aggregation: str = "sum"
+    aggregation: Literal["sum", "count", "avg", "min", "max"] = "sum"
+
+    @field_validator("aggregation", mode="before")
+    @classmethod
+    def normalize_aggregation(cls, value: Any) -> Any:
+        return value.lower() if isinstance(value, str) else value
 
 
 class ChartDataRequest(BaseModel):
@@ -124,8 +145,13 @@ async def get_chart_data(
             detail="Either 'table' or 'sql' must be provided"
         )
     
+    validate_tenant(tenant)
+    
     try:
         trino_client = get_trino_client()
+        
+        if request.table and not request.sql:
+            ensure_table_exists(trino_client, tenant, request.table)
         
         # Build query
         if request.sql:
@@ -149,7 +175,7 @@ async def get_chart_data(
                 )
             else:
                 where_clause = build_where_clause(request.filters)
-                query = f"SELECT * FROM {tenant}.{request.table}{where_clause} LIMIT {request.limit}"
+                query = f"SELECT * FROM {qualified_table_name(tenant, request.table)}{where_clause} LIMIT {request.limit}"
         
         # Execute query
         data = trino_client.execute_query(query)
@@ -157,7 +183,7 @@ async def get_chart_data(
         # Get total count if using table
         total = len(data)
         if request.table and not request.sql:
-            count_query = f"SELECT COUNT(*) as count FROM {tenant}.{request.table}{build_where_clause(request.filters)}"
+            count_query = f"SELECT COUNT(*) as count FROM {qualified_table_name(tenant, request.table)}{build_where_clause(request.filters)}"
             count_result = trino_client.execute_query(count_query)
             total = count_result[0]["count"] if count_result else 0
         
@@ -207,7 +233,7 @@ def build_aggregated_query(
     if metrics:
         for metric in metrics:
             safe_col = sanitize_identifier(metric.column)
-            agg = metric.aggregation.upper()
+            agg = ALLOWED_AGGREGATIONS[metric.aggregation]
             select_parts.append(f"{agg}({safe_col}) as {safe_col}")
     elif yAxis:
         # Fallback: if no metrics but yAxis is provided, use SUM
@@ -220,7 +246,7 @@ def build_aggregated_query(
     where_clause = build_where_clause(filters)
     group_clause = f" GROUP BY {', '.join(group_by_parts)}" if group_by_parts else ""
     
-    query = f"SELECT {select_clause} FROM {tenant}.{table}{where_clause}{group_clause} LIMIT {limit}"
+    query = f"SELECT {select_clause} FROM {qualified_table_name(tenant, table)}{where_clause}{group_clause} LIMIT {limit}"
     logger.info(f"Generated aggregated query: {query}")
     return query
 
@@ -228,7 +254,7 @@ def build_aggregated_query(
 def build_where_clause(filters: Optional[FilterGroup]) -> str:
     if not filters or not filters.items:
         return ""
-    logical = filters.logical.upper() if filters.logical else "AND"
+    logical = filters.logical if filters.logical in ("AND", "OR") else "AND"
     clauses = []
     for item in filters.items:
         clauses.append(render_condition(item))
@@ -277,6 +303,23 @@ def sanitize_identifier(identifier: str) -> str:
     if not identifier[0].isalpha() and identifier[0] != "_":
         raise HTTPException(status_code=400, detail=f"Invalid field name: {identifier}")
     return identifier
+
+
+def validate_tenant(tenant: str) -> None:
+    if tenant not in get_settings().VALID_TENANTS:
+        logger.warning(f"Invalid tenant: {tenant!r}")
+        raise HTTPException(status_code=400, detail="Invalid tenant")
+
+
+def ensure_table_exists(trino_client, tenant: str, table: str) -> None:
+    sanitize_identifier(table)
+    if table not in trino_client.get_tables(tenant):
+        raise HTTPException(status_code=404, detail=f"Table not found: {table}")
+
+
+def qualified_table_name(tenant: str, table: str) -> str:
+    validate_tenant(tenant)
+    return f'"{sanitize_identifier(tenant)}"."{sanitize_identifier(table)}"'
 
 
 def format_value(value: Any) -> str:
