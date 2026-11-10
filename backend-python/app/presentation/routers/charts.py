@@ -313,7 +313,9 @@ def validate_tenant(tenant: str) -> None:
 
 def ensure_table_exists(trino_client, tenant: str, table: str) -> None:
     sanitize_identifier(table)
-    if table not in trino_client.get_tables(tenant):
+    rows = trino_client.execute_query(f'SHOW TABLES FROM "{sanitize_identifier(tenant)}"')
+    tables = {row.get("Table") or row.get("table") for row in rows}
+    if table not in tables:
         raise HTTPException(status_code=404, detail=f"Table not found: {table}")
 
 
