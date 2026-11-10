@@ -145,6 +145,12 @@ async def test_repeated_failed_logins_are_throttled(client):
     )
     assert response.status_code == 429
 
+    # Another tenant from the same client is not locked out
+    other = await client.post(
+        "/api/auth/login", json={"tenant": "empresa2", "password": "errada"}
+    )
+    assert other.status_code == 401
+
 
 @pytest.mark.asyncio
 async def test_default_jwt_secret_is_refused(monkeypatch, service):

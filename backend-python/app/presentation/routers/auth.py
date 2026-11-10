@@ -47,7 +47,11 @@ def login(
 ):
     # Sync handler: FastAPI runs it in the threadpool so scrypt doesn't block the event loop
     client_ip = request.client.host if request.client else "unknown"
-    retry_after = throttle.retry_after(client_ip)
+    # Per (client, tenant) so one tenant's failures don't lock out others behind the same IP;
+    # unknown tenants share one bucket so rotating names can't bypass the limit.
+    tenant_key = payload.tenant if payload.tenant in settings.VALID_TENANTS else "*"
+    throttle_key = f"{client_ip}:{tenant_key}"
+    retry_after = throttle.try_acquire(throttle_key)
     if retry_after:
         logger.warning(f"Login throttled for client {client_ip}")
         raise RateLimitException(retry_after=retry_after)
@@ -59,8 +63,8 @@ def login(
     password_ok = verify_password(payload.password, stored_hash or _DUMMY_HASH)
     if stored_hash is None or not password_ok:
         logger.warning(f"Failed login for tenant: {payload.tenant}")
-        throttle.record_failure(client_ip)
         raise UnauthorizedException("Invalid tenant or password")
 
+    throttle.release(throttle_key)
     token, expires_in = create_access_token(payload.tenant, settings)
     return TokenResponse(access_token=token, expires_in=expires_in, tenant=payload.tenant)
