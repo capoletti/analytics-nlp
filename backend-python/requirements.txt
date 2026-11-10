@@ -7,4 +7,5 @@ asyncpg==0.29.0
 trino==0.328.0
 redis==5.0.1
 python-multipart==0.0.6
+PyJWT==2.8.0
 boto3==1.35.56

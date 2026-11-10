@@ -11,7 +11,7 @@ from app.application.dto.dashboard import (
     DashboardResponseDTO,
     DashboardListResponseDTO,
 )
-from app.presentation.dependencies import get_dashboard_service
+from app.presentation.dependencies import get_dashboard_service, require_tenant_access
 from app.exceptions import ApplicationException
 
 logger = logging.getLogger(__name__)
@@ -19,8 +19,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/api/dashboards",
     tags=["dashboards"],
+    dependencies=[Depends(require_tenant_access)],
     responses={
         400: {"description": "Bad request"},
+        401: {"description": "Unauthorized"},
         403: {"description": "Forbidden"},
         404: {"description": "Not found"},
         500: {"description": "Internal server error"},

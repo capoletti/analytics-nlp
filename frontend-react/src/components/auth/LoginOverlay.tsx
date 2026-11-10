@@ -1,14 +1,25 @@
-import { useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 
 export function LoginOverlay() {
   const [selectedTenant, setSelectedTenant] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
 
-  const handleLogin = () => {
-    if (selectedTenant) {
-      login(selectedTenant);
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedTenant || !password) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await login(selectedTenant, password);
+    } catch {
+      setError('Tenant ou senha inválidos');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -20,7 +31,7 @@ export function LoginOverlay() {
           <p className="mt-2 text-sm text-gray-500">Plataforma de Análise de Dados</p>
         </div>
 
-        <div className="space-y-6">
+        <form className="space-y-6" onSubmit={handleLogin}>
           <div>
             <h2 className="mb-4 text-xl font-semibold text-gray-900">Selecione o Tenant</h2>
             <select
@@ -35,15 +46,28 @@ export function LoginOverlay() {
             </select>
           </div>
 
+          <div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Senha"
+              autoComplete="current-password"
+              className="input"
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
           <Button
+            type="submit"
             variant="primary"
-            onClick={handleLogin}
-            disabled={!selectedTenant}
+            disabled={!selectedTenant || !password || submitting}
             className="w-full"
           >
             Entrar
           </Button>
-        </div>
+        </form>
       </div>
     </div>
   );

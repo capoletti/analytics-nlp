@@ -95,6 +95,10 @@ services:
       REDIS_ENABLED: "true"
       REDIS_URL: redis://redis:6379/0
       VALID_TENANTS: '["empresa1","empresa2","empresa3"]'
+      # Required: random value with >= 32 chars (e.g. `openssl rand -hex 32`)
+      JWT_SECRET: ${JWT_SECRET:-}
+      # JSON tenant -> scrypt hash generated with scripts/hash_password.py
+      TENANT_PASSWORD_HASHES: ${TENANT_PASSWORD_HASHES:-{}}
     command: bash -lc "pip install --no-cache-dir -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8081"
     ports:
       - "8081:8081"

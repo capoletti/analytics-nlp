@@ -2,7 +2,7 @@
 
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-from typing import List
+from typing import Dict, List
 
 
 class Settings(BaseSettings):
@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "your-super-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 24
+    # Per-tenant scrypt password hashes (see scripts/hash_password.py)
+    TENANT_PASSWORD_HASHES: Dict[str, str] = {}
     
     # Tenants
     VALID_TENANTS: List[str] = ["empresa1", "empresa2", "empresa3"]
